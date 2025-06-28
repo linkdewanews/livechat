@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Stream Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Definisi variabel CSS untuk skema warna dan styling agar mudah diubah */
+        :root {
+            --bg-color: #f8f9fa; /* Background utama yang cerah */
+            --chat-bg: #ffffff; /* Background kotak chat */
+            --border-color: #e0e0e0; /* Warna border tipis */
+            --text-color: #333333; /* Warna teks utama */
+            --primary-color: #007bff; /* Warna biru default, akan di-override oleh JS */
+            --mod-color: #dc3545; /* Warna merah untuk username moderator */
+            --system-msg-color: #6c757d; /* Warna abu-abu untuk pesan sistem */
+            --input-bg: #f2f2f2; /* Background input field */
+            --button-bg: #007bff; /* Background tombol */
+            --button-text: #ffffff; /* Warna teks tombol */
+            --delete-btn: #dc3545; /* Warna tombol hapus */
+            --ban-btn: #ffc107; /* Warna tombol ban */
+            --shadow: 0 4px 8px rgba(0, 0, 0, 0.05); /* Efek bayangan ringan */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif; /* Menggunakan font Inter */
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Tinggi viewport penuh */
+            overflow: hidden; /* Mencegah scroll pada body */
+        }
+
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1; /* Mengambil semua ruang yang tersedia */
+            background-color: var(--chat-bg);
+            border-radius: 8px; /* Sudut membulat */
+            box-shadow: var(--shadow); /* Efek bayangan */
+            margin: 20px; /* Jarak dari tepi layar */
+            overflow: hidden; /* Menyembunyikan scrollbar pada container */
+        }
+
+        /* Area pesan chat */
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 15px;
+            overflow-y: auto; /* Memungkinkan pesan untuk discroll */
+            flex-grow: 1; /* Memungkinkan pesan untuk mengambil ruang */
+            padding-bottom: 70px; /* Memberi ruang untuk form input di bagian bawah */
+        }
+        #messages li {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color); /* Garis pemisah antar pesan */
+            position: relative;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        #messages li:last-child {
+            border-bottom: none; /* Tidak ada garis di pesan terakhir */
+        }
+        #messages li span.username {
+            font-weight: 600; /* Tebal sedang */
+            margin-right: 5px;
+            /* Warna akan diset via JS */
+        }
+        #messages li span.username.mod {
+            color: var(--mod-color); /* Warna khusus untuk moderator */
+        }
+        #messages li span.timestamp {
+            font-size: 0.7em;
+            color: var(--system-msg-color);
+            margin-left: 10px;
+            opacity: 0.8;
+        }
+        #messages li.system-message {
+            font-style: italic;
+            color: var(--system-msg-color);
+            text-align: center;
+            padding: 10px 0;
+            font-size: 0.8em;
+            border-bottom: none;
+        }
+
+        /* Container untuk setup username (muncul pertama kali) */
+        #username-setup {
+            display: flex; /* Flexbox untuk layout horizontal */
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--chat-bg);
+            align-items: center;
+            flex-shrink: 0; /* Tidak menyusut */
+        }
+        #username-setup #usernameInput {
+            flex-grow: 1; /* Memenuhi sisa ruang */
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 0.9em;
+            outline: none; /* Hilangkan outline fokus default */
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+        #username-setup #usernameInput:read-only {
+            background-color: #e9ecef; /* Background saat read-only */
+            cursor: not-allowed;
+        }
+        #username-setup #set-username-btn {
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        #username-setup #set-username-btn:hover {
+            background-color: #0056b3; /* Efek hover */
+        }
+
+        /* Container untuk form pengiriman pesan */
+        #form-container {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--chat-bg);
+            display: flex; /* Flexbox untuk layout horizontal */
+            flex-shrink: 0; /* Tidak menyusut */
+        }
+
+        #input {
+            flex-grow: 1; /* Memenuhi sisa ruang */
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 0.9em;
+            outline: none;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+        #input:focus {
+            border-color: var(--primary-color); /* Warna border saat fokus */
+        }
+        #form-container button[type="submit"] {
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        #form-container button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        /* Aksi Moderator (Hapus/Ban) */
+        #messages li .moderator-actions {
+            position: absolute;
+            right: 5px; /* Jarak dari kanan */
+            top: 50%;
+            transform: translateY(-50%);
+            display: none; /* Sembunyikan secara default */
+            white-space: nowrap; /* Mencegah tombol putus baris */
+        }
+        #messages li:hover .moderator-actions {
+            display: flex; /* Tampilkan saat hover, menggunakan flex untuk tombol */
+            align-items: center;
+        }
+        #messages li .moderator-actions button {
+            background-color: var(--delete-btn);
+            color: white;
+            border: none;
+            padding: 4px 8px; /* Padding lebih kecil */
+            border-radius: 4px; /* Border radius lebih kecil */
+            cursor: pointer;
+            font-size: 0.65em; /* Font lebih kecil */
+            margin-left: 5px;
+            opacity: 0.9;
+            transition: opacity 0.2s ease, background-color 0.2s ease;
+        }
+        #messages li .moderator-actions button:hover {
+            opacity: 1; /* Efek hover */
+        }
+        #messages li .moderator-actions button.ban-btn {
+            background-color: var(--ban-btn);
+        }
+
+        /* Hilangkan UI Moderator Tools (Unban) karena fitur ini dihapus */
+        #moderatorTools {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="username-setup">
+            <input id="usernameInput" autocomplete="off" placeholder="Nama Anda" />
+            <button type="button" id="set-username-btn">Set Nama</button>
+        </div>
+        
+        <ul id="messages"></ul>
+        
+        <div id="form-container">
+            <input id="input" autocomplete="off" placeholder="Ketik pesan..." />
+            <button type="submit">Kirim</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket; // Variabel global untuk instance Socket.IO
+        let currentRole = 'user'; // Peran user saat ini (user atau moderator)
+        // Coba ambil username dari LocalStorage (untuk mengingat username user biasa)
+        let currentUsername = localStorage.getItem('chatUsername'); 
+
+        // Ambil referensi ke elemen-elemen DOM
+        const usernameInput = document.getElementById('usernameInput');
+        const setUsernameBtn = document.getElementById('set-username-btn');
+        const input = document.getElementById('input'); // Input pesan chat
+        const chatForm = document.getElementById('form-container'); // Container form chat
+        const messages = document.getElementById('messages'); // List pesan chat
+        const usernameSetup = document.getElementById('username-setup'); // Container setup username
+
+        // Daftar username moderator yang diketahui frontend (HANYA UNTUK LOGIKA POP-UP PASSWORD)
+        // Harus sesuai dengan kunci di objek MODERATORS di server.js
+        const FRONTEND_MODERATOR_USERNAMES = ['mod_alpha', 'mod_beta', 'mod_gamma'];
+
+        // --- Fungsi Helper: Menghasilkan Warna Heksadesimal dari String (Username) ---
+        // Fungsi ini akan menghasilkan warna yang konsisten untuk setiap username yang sama.
+        function stringToHslColor(str, s, l) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const h = hash % 360;
+            return `hsl(${h}, ${s}%, ${l}%)`;
+        }
+        // --------------------------------------------------------------------------
+
+        // --- Fungsi Utama: Menginisialisasi atau Mengulang Koneksi Socket.IO ---
+        function initializeSocket(user, role, pass = null) {
+            // Jika ada koneksi sebelumnya, putuskan dulu
+            if (socket) {
+                socket.disconnect();
+            }
+
+            // Siapkan data autentikasi untuk dikirim ke server
+            const authData = { username: user, role: role };
+            if (role === 'moderator') {
+                authData.password = pass; // Tambahkan password jika login sebagai moderator
+            }
+
+            // Buat koneksi Socket.IO baru
+            socket = io({ auth: authData });
+
+            // --- Event Listener Socket.IO ---
+            socket.on('connect', () => {
+                console.log('Connected to server as', user, 'with role', role);
+                addSystemMessageToDisplay(`Terhubung sebagai ${user} (${role}).`);
+                
+                // Setelah berhasil terhubung, sembunyikan setup username dan tampilkan form chat
+                usernameSetup.style.display = 'none';
+                chatForm.style.display = 'flex'; // Menggunakan 'flex' karena ini adalah flex container
+            });
+
+            // Event saat koneksi gagal (misalnya, autentikasi moderator salah)
+            socket.on('connect_error', (err) => {
+                console.error('Connection error:', err.message);
+                addSystemMessageToDisplay(`Gagal terhubung: ${err.message}.`);
+                
+                // Reset state user jika koneksi gagal
+                currentUsername = null;
+                currentRole = 'user';
+                localStorage.removeItem('chatUsername'); // Hapus username dari LocalStorage
+                usernameInput.value = ''; // Kosongkan input nama
+                usernameInput.readOnly = false; // Aktifkan kembali input nama
+                setUsernameBtn.style.display = 'inline-block'; // Tampilkan tombol "Set Nama"
+
+                // Tampilkan kembali setup username, sembunyikan form chat
+                usernameSetup.style.display = 'flex';
+                chatForm.style.display = 'none';
+            });
+
+            // Event saat koneksi terputus
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server.');
+                addSystemMessageToDisplay('Anda terputus dari chat.');
+                // Tampilkan kembali setup username, sembunyikan form chat
+                usernameSetup.style.display = 'flex';
+                chatForm.style.display = 'none';
+            });
+
+            // Menerima pesan chat baru dari server
+            socket.on('chat message', (msg) => {
+                addMessageToDisplay(msg);
+            });
+
+            // Menerima histori chat saat pertama kali terhubung
+            socket.on('chat history', (historyMessages) => {
+                messages.innerHTML = ''; // Bersihkan pesan yang mungkin ada sebelumnya
+                historyMessages.forEach(msg => {
+                    addMessageToDisplay(msg);
+                });
+                messages.scrollTop = messages.scrollHeight; // Scroll ke bawah
+            });
+
+            // Menerima event pesan dihapus dari server
+            socket.on('message deleted', (messageId) => {
+                const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.remove(); // Hapus elemen pesan dari DOM
+                }
+            });
+
+            // Menerima pesan sistem dari server (misal: user diban)
+            socket.on('system message', (text) => {
+                addSystemMessageToDisplay(text);
+            });
+        }
+
+        // --- Fungsi Helper: Menambahkan Pesan ke Tampilan Chat ---
+        function addMessageToDisplay(msg) {
+            const item = document.createElement('li');
+            item.setAttribute('data-message-id', msg.id); // Simpan ID pesan di atribut data
+
+            const usernameSpan = document.createElement('span');
+            usernameSpan.className = 'username';
+            
+            // Logika warna username
+            if (msg.role === 'moderator') {
+                usernameSpan.textContent = `[Mod] ${msg.username}`;
+                usernameSpan.classList.add('mod'); // Tambahkan kelas 'mod' untuk CSS
+                // Warna moderator sudah didefinisikan di CSS
+            } else {
+                usernameSpan.textContent = msg.username;
+                // Panggil fungsi untuk menghasilkan warna unik berdasarkan username
+                usernameSpan.style.color = stringToHslColor(msg.username, 70, 40); // Saturasi 70%, Lightness 40%
+            }
+            
+            const textContent = document.createElement('span');
+            textContent.textContent = `: ${msg.text}`; // Teks pesan
+            textContent.style.wordBreak = 'break-word'; // Mengatasi teks yang terlalu panjang
+
+            const timestampSpan = document.createElement('span');
+            timestampSpan.className = 'timestamp';
+            const date = new Date(msg.timestamp);
+            timestampSpan.textContent = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+            item.appendChild(usernameSpan);
+            item.appendChild(textContent);
+            item.appendChild(timestampSpan);
+
+            // Tampilkan aksi moderator (Hapus/Ban) hanya jika user saat ini adalah moderator
+            // dan pesan bukan dari moderator lain (moderator tidak bisa ban/hapus sesama moderator)
+            if (currentRole === 'moderator' && msg.role !== 'moderator') {
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'moderator-actions';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Hapus';
+                deleteBtn.onclick = () => {
+                    if (confirm('Yakin ingin menghapus pesan ini?')) {
+                        socket.emit('delete message', msg.id);
+                    }
+                };
+
+                const banBtn = document.createElement('button');
+                banBtn.textContent = 'Ban';
+                banBtn.className = 'ban-btn'; // Tambahkan kelas untuk styling
+                banBtn.onclick = () => {
+                    if (confirm(`Yakin ingin memban pengguna ${msg.username}?`)) {
+                        socket.emit('ban user', msg.username);
+                    }
+                };
+
+                actionsDiv.appendChild(deleteBtn);
+                actionsDiv.appendChild(banBtn);
+                item.appendChild(actionsDiv);
+            }
+
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight; // Auto-scroll ke bawah
+        }
+
+        // --- Fungsi Helper: Menambahkan Pesan Sistem ke Tampilan Chat ---
+        function addSystemMessageToDisplay(text) {
+            const item = document.createElement('li');
+            item.className = 'system-message'; // Tambahkan kelas untuk styling khusus
+            item.textContent = text;
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight; // Auto-scroll ke bawah
+        }
+
+        // --- Logika Utama Saat Halaman Dimuat atau User Menyetel Username ---
+
+        // Sembunyikan form chat secara default sampai user terhubung
+        chatForm.style.display = 'none'; 
+
+        // Cek apakah username sudah ada di LocalStorage
+        if (currentUsername) {
+            // Jika ada, cek apakah username ini terdaftar sebagai moderator di frontend
+            const isModFromLocalStorage = FRONTEND_MODERATOR_USERNAMES.includes(currentUsername);
+            
+            if (isModFromLocalStorage) {
+                // Jika ya, minta password melalui pop-up
+                const modPass = prompt(`Masukkan password untuk moderator ${currentUsername}:`);
+                if (modPass) {
+                    currentRole = 'moderator';
+                    // Inisialisasi socket dengan kredensial moderator
+                    initializeSocket(currentUsername, currentRole, modPass);
+                } else {
+                    // Jika password dibatalkan atau kosong, beri notifikasi
+                    alert('Autentikasi moderator dibatalkan. Silakan masukkan nama lain atau refresh untuk mencoba lagi.');
+                    currentUsername = null; 
+                    localStorage.removeItem('chatUsername'); 
+                    usernameInput.value = ''; 
+                    usernameInput.readOnly = false; 
+                    setUsernameBtn.style.display = 'inline-block'; 
+                }
+            } else {
+                // Jika bukan moderator, langsung inisialisasi socket sebagai user biasa
+                initializeSocket(currentUsername, currentRole);
+            }
+            // Set nilai input username dan status readOnly
+            usernameInput.value = currentUsername || '';
+            usernameInput.readOnly = currentUsername ? true : false;
+            setUsernameBtn.style.display = currentUsername ? 'none' : 'inline-block';
+
+        } else {
+            // Jika belum ada username di LocalStorage, aktifkan tombol "Set Nama"
+            setUsernameBtn.addEventListener('click', () => {
+                const user = usernameInput.value.trim();
+                if (user) {
+                    if (FRONTEND_MODERATOR_USERNAMES.includes(user)) {
+                        const modPass = prompt(`Masukkan password untuk moderator ${user}:`);
+                        if (modPass) {
+                            currentUsername = user;
+                            currentRole = 'moderator';
+                            localStorage.setItem('chatUsername', currentUsername); // Simpan nama moderator juga
+                            initializeSocket(currentUsername, currentRole, modPass);
+                        } else {
+                            alert('Autentikasi moderator dibatalkan.');
+                        }
+                    } else {
+                        // Jika bukan moderator, set sebagai user biasa
+                        currentUsername = user;
+                        currentRole = 'user';
+                        localStorage.setItem('chatUsername', currentUsername); // Simpan nama user biasa
+                        initializeSocket(currentUsername, currentRole);
+                    }
+                } else {
+                    alert('Mohon masukkan nama Anda.');
+                }
+            });
+        }
+        
+        // --- Event Listener untuk Form Pengiriman Pesan ---
+        // Mendengarkan event 'submit' pada div chatForm (yang berisi input dan tombol kirim)
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault(); // Mencegah refresh halaman
+            const messageText = input.value.trim();
+
+            // Pengecekan sebelum mengirim pesan
+            if (!socket || !socket.connected) {
+                addSystemMessageToDisplay('Anda belum terhubung ke chat. Set nama terlebih dahulu.');
+                return;
+            }
+            if (!currentUsername) {
+                addSystemMessageToDisplay('Mohon set nama Anda terlebih dahulu.');
+                return;
+            }
+
+            if (messageText) {
+                socket.emit('chat message', { username: currentUsername, text: messageText });
+                input.value = ''; // Mengosongkan input setelah dikirim
+            }
+        });
+
+        // --- Event Listener untuk Tombol ENTER di Input Pesan ---
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Mencegah perilaku default Enter (misal: submit form jika input di dalam form)
+                // Memanggil event submit secara manual pada chatForm
+                // Ini akan memicu logika yang sama seperti saat tombol "Kirim" diklik
+                chatForm.dispatchEvent(new Event('submit')); 
+            }
+        });
+    </script>
+</body>
+</html>
